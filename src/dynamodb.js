@@ -43,7 +43,29 @@ class DynamodbAdapter {
     }
 
     async runTransactWriteItems(transactionItems) {
+        for (const item of transactionItems) {
+            if ('Put' in item) {
+                item.Put.Item = await this._prepareTransactPutQuery(item.Put?.Item, item.Put?.TableInformation);
+                item.Put.TableName = item.Put.TableInformation.table;
+                delete item.Put.TableInformation;
+            } else if ('Delete' in item) {
+                item.Delete.TableName = item.Delete.TableInformation.table;
+                delete item.Delete.TableInformation;
+            } else if ('Update' in item) {
+                item.Update.TableName = item.Delete.TableInformation.table;
+                delete item.Update.TableInformation;
+            }
+        }
         return this._dynamodb.transactWrite({TransactItems: transactionItems}).promise();
+    }
+
+    async _prepareTransactPutQuery(params, tableInformation) {
+        const schemaMapper = new SchemaMapper({
+            validate: true,
+            schema: tableInformation.modelSchema,
+            file: tableInformation.modelSchemaFile
+        });
+        return schemaMapper.map(params);
     }
 
     async batchOverwrite(params) {
